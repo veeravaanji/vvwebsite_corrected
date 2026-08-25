@@ -3,27 +3,61 @@ import sqlite3
 import csv
 import io
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, redirect, Response, session
+
+from flask import (
+    Flask,
+    render_template,
+    request,
+    jsonify,
+    redirect,
+    Response,
+    session
+)
+
 import logging
 
 from database import (
     create_database,
-    add_student,
-    get_all_students,
-    get_student_by_id,
-    delete_student as db_delete_student,
-    update_student
+    get_connection
 )
 
-# ================== DIRECTORY & DATABASE CONFIG ==================
 
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-TEMPLATE_DIR = os.path.join(BASE_DIR, "templates")
-STATIC_DIR = os.path.join(BASE_DIR, "static")
-DATABASE = os.path.join(BASE_DIR, "martial_arts.db")
+# =========================================================
+# LOGGING
+# =========================================================
+
+logging.basicConfig(level=logging.INFO)
+
+logger = logging.getLogger(__name__)
 
 
-# ================== FLASK APP ==================
+# =========================================================
+# DIRECTORY CONFIGURATION
+# =========================================================
+
+BASE_DIR = os.path.abspath(
+    os.path.dirname(__file__)
+)
+
+TEMPLATE_DIR = os.path.join(
+    BASE_DIR,
+    "templates"
+)
+
+STATIC_DIR = os.path.join(
+    BASE_DIR,
+    "static"
+)
+
+DATABASE = os.path.join(
+    BASE_DIR,
+    "martial_arts.db"
+)
+
+
+# =========================================================
+# FLASK APPLICATION
+# =========================================================
 
 app = Flask(
     __name__,
@@ -33,161 +67,270 @@ app = Flask(
 )
 
 
-# ================== DATABASE INITIALIZATION ==================
-
-# IMPORTANT:
-# This runs when Flask starts, including when Render uses:
-# gunicorn app:app
-create_database()
-
-
-# ================== APP CONFIGURATION ==================
+# =========================================================
+# FLASK CONFIGURATION
+# =========================================================
 
 app.secret_key = "veera_vaanji_super_secret_key_2026"
+
 app.config["DATABASE"] = DATABASE
-app.config["JSON_SORT_KEYS"] = False
 
 
-# ================== ADMIN LOGIN ==================
+# =========================================================
+# ADMIN LOGIN
+# =========================================================
 
 ADMIN_USERNAME = "user"
+
 ADMIN_PASSWORD = "user@123"
 
 
-# ================== LOGGING ==================
+# =========================================================
+# DATABASE INITIALIZATION
+# =========================================================
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# This runs when Gunicorn starts on Render.
+
+logger.info("Starting Veera Vaanji application...")
+
+logger.info(
+    f"Database path: {DATABASE}"
+)
+
+create_database()
 
 
-# ================== DATABASE HELPER ==================
+# =========================================================
+# DATABASE CONNECTION
+# =========================================================
 
 def get_db_connection():
-    """Create a database connection with dictionary-like row access."""
 
     try:
-        conn = sqlite3.connect(DATABASE)
+
+        # Make sure database/table exists
+        create_database()
+
+        conn = sqlite3.connect(
+            DATABASE
+        )
+
         conn.row_factory = sqlite3.Row
+
         return conn
 
     except sqlite3.Error as e:
-        logger.error(f"Database connection error: {e}")
+
+        logger.error(
+            f"Database connection error: {e}"
+        )
+
         return None
 
 
-# ================== PUBLIC WEBSITE ROUTES ==================
+# =========================================================
+# HOME
+# =========================================================
 
 @app.route("/")
 @app.route("/index")
 @app.route("/index.html")
 def home():
-    return render_template("index.html")
 
+    return render_template(
+        "index.html"
+    )
+
+
+# =========================================================
+# ABOUT
+# =========================================================
 
 @app.route("/about")
 @app.route("/about.html")
 def about():
-    return render_template("about.html")
 
+    return render_template(
+        "about.html"
+    )
+
+
+# =========================================================
+# ADMISSION
+# =========================================================
 
 @app.route("/admission")
 @app.route("/admission.html")
 def admission():
-    return render_template("admission.html")
 
+    return render_template(
+        "admission.html"
+    )
+
+
+# =========================================================
+# ACHIEVEMENT
+# =========================================================
 
 @app.route("/achievement")
 @app.route("/achievement.html")
 def achievement():
-    return render_template("achievement.html")
 
+    return render_template(
+        "achievement.html"
+    )
+
+
+# =========================================================
+# GALLERY
+# =========================================================
 
 @app.route("/gallery")
 @app.route("/gallery.html")
 def gallery():
-    return render_template("gallery.html")
 
+    return render_template(
+        "gallery.html"
+    )
+
+
+# =========================================================
+# MENTORS
+# =========================================================
 
 @app.route("/mentors")
 @app.route("/mentors.html")
 def mentors():
-    return render_template("mentors.html")
 
+    return render_template(
+        "mentors.html"
+    )
+
+
+# =========================================================
+# TRAINERS
+# =========================================================
 
 @app.route("/trainers")
 @app.route("/trainers.html")
 def trainers():
-    return render_template("trainers.html")
 
+    return render_template(
+        "trainers.html"
+    )
+
+
+# =========================================================
+# TESTIMONIALS
+# =========================================================
 
 @app.route("/testimonials")
 @app.route("/testimonials.html")
 def testimonials():
-    return render_template("testimonials.html")
 
+    return render_template(
+        "testimonials.html"
+    )
+
+
+# =========================================================
+# CONTACT
+# =========================================================
 
 @app.route("/contact")
 @app.route("/contact.html")
 def contact():
-    return render_template("contact.html")
+
+    return render_template(
+        "contact.html"
+    )
 
 
-# ================== STUDENT REGISTRATION ==================
+# =========================================================
+# STUDENT REGISTRATION
+# =========================================================
 
-@app.route("/register", methods=["GET", "POST"])
-@app.route("/register.html", methods=["GET", "POST"])
+@app.route(
+    "/register",
+    methods=["GET", "POST"]
+)
+
+@app.route(
+    "/register.html",
+    methods=["GET", "POST"]
+)
+
 def register():
 
     if request.method == "POST":
 
+        conn = None
+
         try:
-            # Get form data
+
+            # -----------------------------------------
+            # GET FORM DATA
+            # -----------------------------------------
+
             student_name = request.form.get(
-                "student_name", ""
+                "student_name",
+                ""
             ).strip()
 
             parent_name = request.form.get(
-                "parent_name", ""
+                "parent_name",
+                ""
             ).strip()
 
             dob = request.form.get(
-                "dob", ""
+                "dob",
+                ""
             ).strip()
 
             age = request.form.get(
-                "age", ""
+                "age",
+                ""
             ).strip()
 
             gender = request.form.get(
-                "gender", ""
+                "gender",
+                ""
             ).strip()
 
             mobile = request.form.get(
-                "mobile", ""
+                "mobile",
+                ""
             ).strip()
 
             email = request.form.get(
-                "email", ""
+                "email",
+                ""
             ).strip()
 
             address = request.form.get(
-                "address", ""
+                "address",
+                ""
             ).strip()
 
             previous_martial_art = request.form.get(
-                "previous_martial_art", "No"
+                "previous_martial_art",
+                "No"
             ).strip()
 
             martial_art_details = request.form.get(
-                "martial_art_details", ""
+                "martial_art_details",
+                ""
             ).strip()
 
             medical_condition = request.form.get(
-                "medical_condition", ""
+                "medical_condition",
+                ""
             ).strip()
 
 
-            # ================== VALIDATION ==================
+            # -----------------------------------------
+            # VALIDATION
+            # -----------------------------------------
 
             if not all([
                 student_name,
@@ -202,30 +345,40 @@ def register():
 
                 return jsonify({
                     "success": False,
-                    "message": "Please fill in all required fields."
+                    "message":
+                        "Please fill in all required fields."
                 }), 400
 
 
-            # Check age
+            # -----------------------------------------
+            # AGE VALIDATION
+            # -----------------------------------------
+
             try:
+
                 age = int(age)
 
             except ValueError:
 
                 return jsonify({
                     "success": False,
-                    "message": "Age must be a valid number."
+                    "message":
+                        "Age must be a valid number."
                 }), 400
 
 
-            # ================== JOINED DATE ==================
+            # -----------------------------------------
+            # JOINED DATE
+            # -----------------------------------------
 
             joined_date = datetime.now().strftime(
                 "%d-%m-%Y %H:%M"
             )
 
 
-            # ================== DATABASE CONNECTION ==================
+            # -----------------------------------------
+            # DATABASE
+            # -----------------------------------------
 
             conn = get_db_connection()
 
@@ -233,14 +386,17 @@ def register():
 
                 return jsonify({
                     "success": False,
-                    "message": "Database connection error."
+                    "message":
+                        "Database connection error."
                 }), 500
 
 
             cursor = conn.cursor()
 
 
-            # ================== INSERT STUDENT ==================
+            # -----------------------------------------
+            # INSERT
+            # -----------------------------------------
 
             cursor.execute("""
                 INSERT INTO students (
@@ -257,8 +413,12 @@ def register():
                     medical_condition,
                     joined_date
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (
+                    ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?
+                )
             """, (
+
                 student_name,
                 parent_name,
                 dob,
@@ -277,51 +437,87 @@ def register():
             new_student_id = cursor.lastrowid
 
             conn.commit()
-            conn.close()
 
 
             logger.info(
-                f"Student registered successfully: "
-                f"{student_name} - ID {new_student_id}"
+                f"Student registered: "
+                f"{student_name}, "
+                f"ID={new_student_id}"
             )
 
 
-            # ================== SUCCESS RESPONSE ==================
-
             return jsonify({
+
                 "success": True,
-                "message": "Registration Completed Successfully!",
+
+                "message":
+                    "Registration Completed Successfully!",
+
                 "student": {
-                    "id": str(new_student_id),
-                    "name": student_name,
-                    "joined_date": joined_date,
-                    "mobile": mobile
+
+                    "id":
+                        str(new_student_id),
+
+                    "name":
+                        student_name,
+
+                    "joined_date":
+                        joined_date,
+
+                    "mobile":
+                        mobile
                 }
+
             }), 201
 
 
         except Exception as e:
 
+            if conn:
+
+                conn.rollback()
+
+
             logger.error(
-                f"Error registering student: {e}"
+                f"Registration error: {e}"
             )
 
+
             return jsonify({
+
                 "success": False,
-                "message": f"Server error: {str(e)}"
+
+                "message":
+                    f"Server error: {str(e)}"
+
             }), 500
 
 
-    # GET request
-    return render_template("register.html")
+        finally:
+
+            if conn:
+
+                conn.close()
 
 
-# ================== ADMIN AUTHENTICATION ==================
+    return render_template(
+        "register.html"
+    )
 
-@app.route("/admin/login", methods=["GET", "POST"])
+
+# =========================================================
+# ADMIN LOGIN
+# =========================================================
+
+@app.route(
+    "/admin/login",
+    methods=["GET", "POST"]
+)
+
 def admin_login():
 
     if session.get("is_admin"):
+
         return redirect("/admin")
 
 
@@ -331,26 +527,28 @@ def admin_login():
     if request.method == "POST":
 
         username = request.form.get(
-            "username", ""
+            "username",
+            ""
         ).strip()
 
         password = request.form.get(
-            "password", ""
+            "password",
+            ""
         ).strip()
 
 
         if (
             username == ADMIN_USERNAME
-            and password == ADMIN_PASSWORD
+            and
+            password == ADMIN_PASSWORD
         ):
 
             session["is_admin"] = True
 
             return redirect("/admin")
 
-        else:
 
-            error = "Invalid Username or Password!"
+        error = "Invalid Username or Password!"
 
 
     return render_template(
@@ -359,35 +557,54 @@ def admin_login():
     )
 
 
-# ================== ADMIN LOGOUT ==================
+# =========================================================
+# ADMIN LOGOUT
+# =========================================================
 
 @app.route("/admin/logout")
 def admin_logout():
 
-    session.pop("is_admin", None)
+    session.pop(
+        "is_admin",
+        None
+    )
 
-    return redirect("/admin/login")
+    return redirect(
+        "/admin/login"
+    )
 
 
-# ================== ADMIN DASHBOARD ==================
+# =========================================================
+# ADMIN DASHBOARD
+# =========================================================
 
 @app.route("/admin")
 @app.route("/admin.html")
 def admin_dashboard():
 
-    # Check admin login
     if not session.get("is_admin"):
-        return redirect("/admin/login")
+
+        return redirect(
+            "/admin/login"
+        )
 
 
     students = []
 
+
     stats = {
+
         "total": 0,
+
         "male": 0,
+
         "female": 0,
+
         "experienced": 0
     }
+
+
+    conn = None
 
 
     try:
@@ -400,9 +617,11 @@ def admin_dashboard():
             cursor = conn.cursor()
 
 
-            cursor.execute(
-                "SELECT * FROM students ORDER BY id DESC"
-            )
+            cursor.execute("""
+                SELECT *
+                FROM students
+                ORDER BY id DESC
+            """)
 
 
             rows = cursor.fetchall()
@@ -414,48 +633,71 @@ def admin_dashboard():
             ]
 
 
-            # Statistics
-            stats["total"] = len(students)
+            stats["total"] = len(
+                students
+            )
 
 
             stats["male"] = sum(
+
                 1
+
                 for s in students
+
                 if str(
-                    s.get("gender", "")
-                ).strip().lower() == "male"
+                    s.get(
+                        "gender",
+                        ""
+                    )
+                ).strip().lower()
+                == "male"
             )
 
 
             stats["female"] = sum(
+
                 1
+
                 for s in students
+
                 if str(
-                    s.get("gender", "")
-                ).strip().lower() == "female"
+                    s.get(
+                        "gender",
+                        ""
+                    )
+                ).strip().lower()
+                == "female"
             )
 
 
             stats["experienced"] = sum(
+
                 1
+
                 for s in students
+
                 if str(
                     s.get(
                         "previous_martial_art",
                         ""
                     )
-                ).strip().lower() == "yes"
+                ).strip().lower()
+                == "yes"
             )
-
-
-            conn.close()
 
 
     except Exception as e:
 
         logger.error(
-            f"Error loading admin dashboard: {e}"
+            f"Admin dashboard error: {e}"
         )
+
+
+    finally:
+
+        if conn:
+
+            conn.close()
 
 
     return render_template(
@@ -465,17 +707,25 @@ def admin_dashboard():
     )
 
 
-# ================== DELETE STUDENT ==================
+# =========================================================
+# DELETE STUDENT
+# =========================================================
 
 @app.route(
     "/admin/delete/<int:student_id>",
     methods=["GET", "POST"]
 )
+
 def delete_student(student_id):
 
-    # Check admin login
     if not session.get("is_admin"):
-        return redirect("/admin/login")
+
+        return redirect(
+            "/admin/login"
+        )
+
+
+    conn = None
 
 
     try:
@@ -488,40 +738,56 @@ def delete_student(student_id):
             cursor = conn.cursor()
 
 
-            cursor.execute(
-                "DELETE FROM students WHERE id = ?",
-                (student_id,)
-            )
+            cursor.execute("""
+                DELETE FROM students
+                WHERE id = ?
+            """, (student_id,))
 
 
             conn.commit()
-            conn.close()
 
 
             logger.info(
-                f"Student ID {student_id} deleted successfully."
+                f"Student {student_id} deleted."
             )
 
 
     except Exception as e:
 
         logger.error(
-            f"Error deleting student {student_id}: {e}"
+            f"Delete error: {e}"
         )
 
 
-    return redirect("/admin")
+    finally:
+
+        if conn:
+
+            conn.close()
 
 
-# ================== EXPORT CSV ==================
+    return redirect(
+        "/admin"
+    )
+
+
+# =========================================================
+# EXPORT CSV
+# =========================================================
 
 @app.route("/admin/export-csv")
 @app.route("/admin/export_csv")
+
 def export_csv():
 
-    # Check admin login
     if not session.get("is_admin"):
-        return redirect("/admin/login")
+
+        return redirect(
+            "/admin/login"
+        )
+
+
+    conn = None
 
 
     try:
@@ -529,76 +795,137 @@ def export_csv():
         conn = get_db_connection()
 
 
-        if not conn:
-            return "Database error", 500
+        if conn is None:
+
+            return (
+                "Database error",
+                500
+            )
 
 
         cursor = conn.cursor()
 
 
-        cursor.execute(
-            "SELECT * FROM students ORDER BY id DESC"
-        )
+        cursor.execute("""
+            SELECT *
+            FROM students
+            ORDER BY id DESC
+        """)
 
 
         rows = cursor.fetchall()
 
-        conn.close()
 
-
-        # Create CSV in memory
         output = io.StringIO()
 
-        writer = csv.writer(output)
+        writer = csv.writer(
+            output
+        )
 
 
-        # Header
+        # -----------------------------------------
+        # CSV HEADER
+        # -----------------------------------------
+
         writer.writerow([
+
             "ID",
+
             "Student Name",
+
             "Parent Name",
+
             "DOB",
+
             "Age",
+
             "Gender",
+
             "Mobile",
+
             "Email",
+
             "Address",
+
             "Previous Martial Art",
+
             "Details",
+
             "Medical Condition",
+
             "Joined Date"
         ])
 
 
-        # Student data
-        for r in rows:
+        # -----------------------------------------
+        # CSV DATA
+        # -----------------------------------------
 
-            s = dict(r)
+        for row in rows:
+
+            student = dict(row)
 
 
             writer.writerow([
-                f"VV-{s.get('id', '')}",
-                s.get("student_name", ""),
-                s.get("parent_name", ""),
-                s.get("dob", ""),
-                s.get("age", ""),
-                s.get("gender", ""),
-                s.get("mobile", ""),
-                s.get("email", ""),
-                s.get("address", ""),
-                s.get(
+
+                f"VV-{student.get('id', '')}",
+
+                student.get(
+                    "student_name",
+                    ""
+                ),
+
+                student.get(
+                    "parent_name",
+                    ""
+                ),
+
+                student.get(
+                    "dob",
+                    ""
+                ),
+
+                student.get(
+                    "age",
+                    ""
+                ),
+
+                student.get(
+                    "gender",
+                    ""
+                ),
+
+                student.get(
+                    "mobile",
+                    ""
+                ),
+
+                student.get(
+                    "email",
+                    ""
+                ),
+
+                student.get(
+                    "address",
+                    ""
+                ),
+
+                student.get(
                     "previous_martial_art",
                     "No"
                 ),
-                s.get(
+
+                student.get(
                     "martial_art_details",
                     ""
                 ),
-                s.get(
+
+                student.get(
                     "medical_condition",
                     "None"
                 ),
-                s.get(
+
+                student.get(
                     "joined_date",
                     ""
                 )
@@ -609,11 +936,15 @@ def export_csv():
 
 
         return Response(
+
             output.getvalue(),
+
             mimetype="text/csv",
+
             headers={
                 "Content-Disposition":
-                "attachment; filename=Veera_Vaanji_Students.csv"
+                    "attachment; "
+                    "filename=Veera_Vaanji_Students.csv"
             }
         )
 
@@ -621,8 +952,9 @@ def export_csv():
     except Exception as e:
 
         logger.error(
-            f"Error exporting CSV: {e}"
+            f"CSV export error: {e}"
         )
+
 
         return (
             f"Error exporting CSV: {e}",
@@ -630,38 +962,65 @@ def export_csv():
         )
 
 
-# ================== ERROR HANDLERS ==================
+    finally:
+
+        if conn:
+
+            conn.close()
+
+
+# =========================================================
+# 404 ERROR
+# =========================================================
 
 @app.errorhandler(404)
+
 def not_found(error):
 
     return """
     <h2>404 - Page Not Found</h2>
+
     <p>
-        <a href="/">Return to Home</a>
+        <a href="/">
+            Return to Home
+        </a>
     </p>
     """, 404
 
 
+# =========================================================
+# 500 ERROR
+# =========================================================
+
 @app.errorhandler(500)
+
 def internal_error(error):
 
     logger.error(
         f"Internal server error: {error}"
     )
 
+
     return jsonify({
+
         "success": False,
-        "message": "Internal server error"
+
+        "message":
+            "Internal server error"
+
     }), 500
 
 
-# ================== CONTEXT PROCESSOR ==================
+# =========================================================
+# CONTEXT PROCESSOR
+# =========================================================
 
 @app.context_processor
+
 def inject_config():
 
     return {
+
         "app_name":
             "Veera Vaanji Martial Arts Academy",
 
@@ -670,12 +1029,17 @@ def inject_config():
     }
 
 
-# ================== MAIN ==================
+# =========================================================
+# LOCAL DEVELOPMENT
+# =========================================================
 
 if __name__ == "__main__":
 
     app.run(
+
         debug=True,
+
         host="0.0.0.0",
+
         port=5000
     )
