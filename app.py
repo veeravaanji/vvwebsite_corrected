@@ -5,6 +5,7 @@ import io
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, redirect, url_for, Response, session
 import logging
+from database import add_student, get_all_students, get_student_by_id, delete_student, update_student
 
 # ================== DIRECTORY & DATABASE CONFIG ==================
 
